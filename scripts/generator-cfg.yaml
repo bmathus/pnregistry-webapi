@@ -1,0 +1,8 @@
+generatorName: go-gin-server
+templateDir: /local/scripts/templates
+outputDir: /local
+inputSpec: /local/api/pnregistry.openapi.yaml
+enablePostProcessFile: true
+additionalProperties:
+  apiPath: internal/pn_registry
+  packageName: pn_registry

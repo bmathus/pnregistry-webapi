@@ -17,4 +17,6 @@ type Record struct {
 
 	// Full name of pacient whom the PN record was issued
 	FullName string `json:"full_name,omitempty"`
+
+	PacientId string `json:"pacientId,omitempty"`
 }

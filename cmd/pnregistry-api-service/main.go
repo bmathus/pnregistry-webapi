@@ -10,11 +10,22 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"context"
+	"regexp"
 	"time"
 
 	"github.com/bmathus/pnregistry-webapi/internal/db_service"
 	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin/binding"
+	"github.com/go-playground/validator/v10"
 )
+
+// Custom validator for PatientId field
+// Custom validator for PatientId field
+func patientIDValidator(fl validator.FieldLevel) bool {
+	patientID := fl.Field().String()
+	matched, _ := regexp.MatchString(`^\d{1,10}$`, patientID)
+	return matched
+}
 
 func main() {
 	log.Printf("Server started")
@@ -47,6 +58,12 @@ func main() {
 		ctx.Set("db_service", dbService)
 		ctx.Next()
 	})
+
+	// Register custom validator for patientId field
+	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
+		v.RegisterValidation("only-digits-max-length-10", patientIDValidator)
+	}
+
 	// request routings
 	pn_registry.AddRoutes(engine)
 	engine.GET("/openapi", api.HandleOpenApi)

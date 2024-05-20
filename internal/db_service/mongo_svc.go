@@ -18,7 +18,7 @@ import (
 type DbService[DocType interface{}] interface {
 	CreateDocument(ctx context.Context, id string, document *DocType) error
 	FindDocument(ctx context.Context, id string) (*DocType, error)
-	FindDocuments(ctx context.Context, field *string, value interface{}) ([]DocType, error)
+	FindDocuments(ctx context.Context, field string, value interface{}) ([]DocType, error)
 	UpdateDocument(ctx context.Context, id string, document *DocType) error
 	DeleteDocument(ctx context.Context, id string) error
 	Disconnect(ctx context.Context) error
@@ -209,7 +209,7 @@ func (this *mongoSvc[DocType]) FindDocument(ctx context.Context, id string) (*Do
 	return document, nil
 }
 
-func (this *mongoSvc[DocType]) FindDocuments(ctx context.Context, field *string, value interface{}) ([]DocType, error) {
+func (this *mongoSvc[DocType]) FindDocuments(ctx context.Context, field string, value interface{}) ([]DocType, error) {
 	ctx, contextCancel := context.WithTimeout(ctx, this.Timeout)
 	defer contextCancel()
 
@@ -223,8 +223,8 @@ func (this *mongoSvc[DocType]) FindDocuments(ctx context.Context, field *string,
 
 	// Construct query
 	var filter bson.D
-	if field != nil && value != nil {
-		filter = bson.D{{Key: *field, Value: value}}
+	if field != "" && value != nil {
+		filter = bson.D{{Key: field, Value: value}}
 	} else {
 		filter = bson.D{} // No filter, fetch all documents in collection
 	}

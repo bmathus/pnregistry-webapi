@@ -13,7 +13,7 @@ info:
     url: 'https://creativecommons.org/licenses/by/4.0/'
 tags:
   - name: PnRegistryRecords
-    description: Sick-leave (PN) records API 
+    description: Sick-leave (PN) records API
 paths:
   '/records/':
     get:
@@ -33,10 +33,10 @@ paths:
                   $ref: '#/components/schemas/Record'
               examples:
                 response:
-                  $ref: '#/components/examples/RecordExample'
+                  $ref: '#/components/examples/RecordsExample'
     post:
       tags:
-         - PnRegistryRecords
+        - PnRegistryRecords
       summary: Saves new PN record into list of all PN records
       operationId: createRecord
       description: Use this method to store newly issued PN record of pacient into list of all PN records in the system.
@@ -44,23 +44,23 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Record"
+              $ref: '#/components/schemas/Record'
             examples:
               request-sample:
-                $ref: "#/components/examples/RecordExample"
+                $ref: '#/components/examples/RecordExample'
         description: New PN record to store
         required: true
       responses:
-        "200":
+        '200':
           description: >-
             Newly created PN record
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Record"
+                $ref: '#/components/schemas/Record'
               examples:
                 updated-response:
-                  $ref: "#/components/examples/RecordExample"
+                  $ref: '#/components/examples/RecordExample'
   '/records/{recordId}/':
     get:
       tags:
@@ -77,15 +77,15 @@ paths:
           schema:
             type: string
       responses:
-        "200":
+        '200':
           description: details of required PN record with specified recordId
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Record"
+                $ref: '#/components/schemas/Record'
               examples:
                 response:
-                  $ref: "#/components/examples/RecordExample"
+                  $ref: '#/components/examples/RecordExample'
     put:
       tags:
         - PnRegistryRecords
@@ -103,23 +103,23 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Record"
+              $ref: '#/components/schemas/Record'
             examples:
               request:
-                $ref: "#/components/examples/RecordExample"
+                $ref: '#/components/examples/RecordExample'
         description: Waiting list entry to update
         required: true
       responses:
-        "200":
+        '200':
           description: >-
             PN record with updated details
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Record"
+                $ref: '#/components/schemas/Record'
               examples:
                 response:
-                  $ref: "#/components/examples/RecordExample"
+                  $ref: '#/components/examples/RecordExample'
     delete:
       tags:
         - PnRegistryRecords
@@ -134,21 +134,58 @@ paths:
           schema:
             type: string
       responses:
-        "204":
+        '204':
           description: Record deleted
 components:
   schemas:
     Record:
       type: object
+      required: [id, patientId, employer, reason, issued, validFrom, validUntil,checkUpDone]
       properties:
         id:
           type: string
-          example: fnjdsianjfew
+          example: x321ab3
           description: Unique identifier of PN record
-        full_name:
+        fullName:
           type: string
-          example: Matus Bojko
+          example: Matúš Bojko
           description: Full name of pacient whom the PN record was issued
+        patientId:
+          type: string
+          example: '9912105126'
+          description: Unique identifier of the patient - in slovakia its rodné číslo
+        employer:
+          type: string
+          example: Volkswagen Slovakia
+          description: Pacient's employer linked to the issued PN record
+        reason:
+          type: string
+          example: choroba
+          description: Reason/couse why the PN was issued for the pacient
+        issued:
+          type: string
+          format: date-time
+          example: '2023-12-20'
+          description: Date when the PN record was created (issued)
+        validFrom:
+          type: string
+          format: date
+          example: '2023-12-23'
+          description: Date since the issued PN record is valid
+        validUntil:
+          type: string
+          format: date
+          example: '2024-02-23'
+          description: Date when the issued PN record validity ends (expires)
+        checkUp:
+          type: string
+          format: date
+          example: '2024-01-10'
+          description: Date when the check up associated with PN record is planned
+        checkUpDone:
+          type: boolean
+          example: true
+          description: If the check up associated with PN record was done
   examples:
     RecordExample:
       summary: PN record issued for Lubomir Zlostný
@@ -156,4 +193,46 @@ components:
         Record represents a sick-leave (PN) issued for pacient by their doctor
       value:
         id: x321ab3
-        full_name: Ľudomír Zlostný
+        fullName: Ľudomír Zlostný
+        patientId: '9912105126'
+        employer: Volkswagen Slovakia
+        reason: úraz
+        issued: '2023-12-20'
+        validFrom: '2023-12-29'
+        validUntil: '2024-02-29'
+        checkUp: '2024-01-29'
+        checkUpDone: true
+    RecordsExample:
+      summary: List of all PN records in the system
+      description: Example list containing 3 PN records - 1 for patient Matúš and 2 for patient Lucia
+      value:
+        - id: xy1gb3
+          fullName: Matúš Bojko
+          patientId: '9912105126'
+          employer: 'ESET, spol. s.r.o'
+          reason: choroba
+          issued: '2024-01-20'
+          validFrom: '2024-01-20'
+          validUntil: '2024-06-20'
+          checkUp: '2024-04-12'
+          checkUpDone: false
+        - id: c3f1ac9
+          fullName: Lucia Hanuláková
+          patientId: '0155171489'
+          employer: 'Lekáreň Dr.Max'
+          reason: 'pracovný úraz'
+          issued: '2024-02-21'
+          validFrom: '2024-02-21'
+          validUntil: '2022-05-12'
+          checkUp: '2024-02-25'
+          checkUpDone: true
+        - id: g4f5hc6
+          fullName: Lucia Hanuláková
+          patientId: '0155171489'
+          employer: 'Lekáreň Benu'
+          reason: 'iné'
+          issued: '2024-09-29'
+          validFrom: '2024-09-29'
+          validUntil: '2024-10-29'
+          checkUp: '2024-10-13'
+          checkUpDone: false

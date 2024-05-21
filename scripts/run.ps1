@@ -30,6 +30,9 @@ switch ($command) {
             mongo down
         }
     }
+    "docker" {
+       docker build -t thamako3/pnregistry-webapi:local-build -f ${ProjectRoot}/build/docker/Dockerfile .
+    }
     "mongo" {
         mongo up
     }

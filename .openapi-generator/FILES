@@ -1,4 +1,3 @@
 internal/pn_registry/README.md
 internal/pn_registry/api_pn_registry_records.go
-internal/pn_registry/model_record.go
 internal/pn_registry/routers.go

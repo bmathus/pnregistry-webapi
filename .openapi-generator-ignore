@@ -3,3 +3,4 @@ go.mod
 Dockerfile
 README.md
 api/openapi.yaml
+internal/pn_registry/model_record.go

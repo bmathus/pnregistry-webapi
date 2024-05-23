@@ -46,20 +46,7 @@ db.createCollection(collection);
 db[collection].createIndex({ id: 1 });
 
 //insert sample data
-let result = db[collection].insertMany([
-  {
-    id: 'e0ec1244-4ae4-419c-87aa-a1ae856f5cd6',
-    fullName: 'Matúš Bojko',
-    patientId: '1123134223',
-    employer: 'FIIT STU',
-    reason: 'choroba',
-    issued: '2024-01-31',
-    validFrom: '2024-01-31',
-    validUntil: '2024-01-31',
-    checkUp: '2024-01-31',
-    checkUpDone: false,
-  },
-]);
+let result = db[collection].insertMany([]);
 
 if (result.writeError) {
   console.error(result);

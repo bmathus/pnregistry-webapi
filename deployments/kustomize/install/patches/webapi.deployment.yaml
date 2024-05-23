@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mb-pnregistry-webapi
+spec:
+  template:
+   spec:
+      initContainers:
+        - name: init-mongodb
+          env:
+            - name: PN_REGISTRY_API_MONGODB_HOST
+              value: null
+              valueFrom:
+                configMapKeyRef:
+                  name: mongodb-connection
+                  key: host
+            - name: PN_REGISTRY_API_MONGODB_PORT
+              value: null
+              valueFrom:
+                configMapKeyRef:
+                  name: mongodb-connection
+                  key: port
+            - name: PN_REGISTRY_API_MONGODB_USERNAME
+              value: null
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-auth
+                  key: username
+            - name: PN_REGISTRY_API_MONGODB_PASSWORD
+              value: null
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-auth
+                  key: password
+      containers:
+        - name: mb-pnregistry-webapi-container
+          env:
+            - name: PN_REGISTRY_API_MONGODB_HOST
+              value: null
+              valueFrom:
+                configMapKeyRef:
+                  name: mongodb-connection
+                  key: host
+            - name: PN_REGISTRY_API_MONGODB_PORT
+              value: null
+              valueFrom:
+                configMapKeyRef:
+                  name: mongodb-connection
+                  key: port
+            - name: PN_REGISTRY_API_MONGODB_USERNAME
+              value: null
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-auth
+                  key: username
+            - name: PN_REGISTRY_API_MONGODB_PASSWORD
+              value: null
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-auth
+                  key: password

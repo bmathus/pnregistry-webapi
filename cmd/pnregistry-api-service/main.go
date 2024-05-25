@@ -1,31 +1,20 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"strings"
-
-	"github.com/bmathus/pnregistry-webapi/api"
-	"github.com/bmathus/pnregistry-webapi/internal/pn_registry"
-	"github.com/gin-gonic/gin"
-
-	"context"
-	"regexp"
 	"time"
 
+	"github.com/bmathus/pnregistry-webapi/api"
 	"github.com/bmathus/pnregistry-webapi/internal/db_service"
+	"github.com/bmathus/pnregistry-webapi/internal/pn_registry"
 	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
 )
-
-// Custom validator for PatientId field
-// Custom validator for PatientId field
-func patientIDValidator(fl validator.FieldLevel) bool {
-	patientID := fl.Field().String()
-	matched, _ := regexp.MatchString(`^\d{1,10}$`, patientID)
-	return matched
-}
 
 func main() {
 	log.Printf("Server started")
@@ -59,9 +48,11 @@ func main() {
 		ctx.Next()
 	})
 
-	// Register custom validator for patientId field
+	// register custom validators for patientId,fullname,employer and reason fields
 	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
-		v.RegisterValidation("only-digits-max-length-10", patientIDValidator)
+		v.RegisterValidation("only-digits-max-length-10", pn_registry.PatientIDValidator)
+		v.RegisterValidation("max-length-50", pn_registry.MaxLengthValidator)
+		v.RegisterValidation("not-valid-reason-value", pn_registry.ReasonValidator)
 	}
 
 	// request routings

@@ -156,16 +156,20 @@ func (this *mongoSvc[DocType]) Disconnect(ctx context.Context) error {
 	return nil
 }
 
+// saves document in collection
 func (this *mongoSvc[DocType]) CreateDocument(ctx context.Context, id string, document *DocType) error {
 	ctx, contextCancel := context.WithTimeout(ctx, this.Timeout)
 	defer contextCancel()
+
 	client, err := this.connect(ctx)
 	if err != nil {
 		return err
 	}
 	db := client.Database(this.DbName)
 	collection := db.Collection(this.Collection)
+
 	result := collection.FindOne(ctx, bson.D{{Key: "id", Value: id}})
+
 	switch result.Err() {
 	case nil: // no error means there is conflicting document
 		return ErrConflict
@@ -179,6 +183,7 @@ func (this *mongoSvc[DocType]) CreateDocument(ctx context.Context, id string, do
 	return err
 }
 
+// finds document in collention
 func (this *mongoSvc[DocType]) FindDocument(ctx context.Context, id string) (*DocType, error) {
 	ctx, contextCancel := context.WithTimeout(ctx, this.Timeout)
 	defer contextCancel()
@@ -209,6 +214,7 @@ func (this *mongoSvc[DocType]) FindDocument(ctx context.Context, id string) (*Do
 	return document, nil
 }
 
+// finds all documents from collention or by specific field
 func (this *mongoSvc[DocType]) FindDocuments(ctx context.Context, field string, value interface{}) ([]DocType, error) {
 	ctx, contextCancel := context.WithTimeout(ctx, this.Timeout)
 	defer contextCancel()
@@ -243,16 +249,20 @@ func (this *mongoSvc[DocType]) FindDocuments(ctx context.Context, field string, 
 	return results, nil
 }
 
+// updates document in colletion
 func (this *mongoSvc[DocType]) UpdateDocument(ctx context.Context, id string, document *DocType) error {
 	ctx, contextCancel := context.WithTimeout(ctx, this.Timeout)
 	defer contextCancel()
+
 	client, err := this.connect(ctx)
 	if err != nil {
 		return err
 	}
+
 	db := client.Database(this.DbName)
 	collection := db.Collection(this.Collection)
 	result := collection.FindOne(ctx, bson.D{{Key: "id", Value: id}})
+
 	switch result.Err() {
 	case nil:
 	case mongo.ErrNoDocuments:
@@ -264,6 +274,7 @@ func (this *mongoSvc[DocType]) UpdateDocument(ctx context.Context, id string, do
 	return err
 }
 
+// deletes document from collection
 func (this *mongoSvc[DocType]) DeleteDocument(ctx context.Context, id string) error {
 	ctx, contextCancel := context.WithTimeout(ctx, this.Timeout)
 	defer contextCancel()

@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// Utility function witch filters out and return updated record from all patient's records
 func filterUpdatedAndLatest(patientRecords []Record, updatedRecordId string) ([]Record, *Record, bool) {
 
 	var recordToUpdate *Record

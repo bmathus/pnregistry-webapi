@@ -34,11 +34,11 @@ func (this *implPnRegistryRecordsAPI) CreateRecord(ctx *gin.Context) {
 
 	newRecord := Record{}
 
-	// Field validation
+	// Fields validation
 	if err := ctx.ShouldBindJSON(&newRecord); err != nil {
 		ctx.JSON(http.StatusBadRequest,
 			gin.H{
-				"status":  http.StatusBadRequest,
+				"status":  "Bad Request",
 				"message": "Invalid request body",
 				"error":   err.Error(),
 			},
@@ -46,13 +46,12 @@ func (this *implPnRegistryRecordsAPI) CreateRecord(ctx *gin.Context) {
 		return
 	}
 
-	// Validate dates
+	// Dates validation
 	if newRecord.CheckUp != nil && newRecord.ValidFrom.After(*newRecord.CheckUp) {
 		ctx.JSON(http.StatusBadRequest,
 			gin.H{
-				"status":  http.StatusBadRequest,
-				"message": "Valid from is after CheckUp",
-				"error":   "Valid from is after CheckUp",
+				"status":  "Bad Request",
+				"message": "'Check Up' date can only be on or after 'Valid from' date",
 			},
 		)
 		return
@@ -60,9 +59,8 @@ func (this *implPnRegistryRecordsAPI) CreateRecord(ctx *gin.Context) {
 	if newRecord.ValidFrom.After(newRecord.ValidUntil) {
 		ctx.JSON(http.StatusBadRequest,
 			gin.H{
-				"status":  http.StatusBadRequest,
-				"message": "Valid from is after valid until",
-				"error":   "Valid from is after valid until",
+				"status":  "Bad Request",
+				"message": "'Valid until' date can only be on or after 'Valid from' date",
 			},
 		)
 		return
@@ -72,12 +70,13 @@ func (this *implPnRegistryRecordsAPI) CreateRecord(ctx *gin.Context) {
 		newRecord.Id = uuid.New().String()
 	}
 
-	existingRecords, err := db.FindDocuments(ctx, "patientId", newRecord.PatientId)
+	// Fetching patient's records by patient ID to validate conflict with new record
+	patientRecords, err := db.FindDocuments(ctx, "patientId", newRecord.PatientId)
 
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError,
+		ctx.JSON(http.StatusBadGateway,
 			gin.H{
-				"status":  "Internal Server Error",
+				"status":  "Bad Gateway",
 				"message": "Failed to fetch existing records",
 				"error":   err.Error(),
 			},
@@ -86,46 +85,44 @@ func (this *implPnRegistryRecordsAPI) CreateRecord(ctx *gin.Context) {
 	}
 
 	//Full Name validation
-	if newRecord.FullName == "" { // nemam meno
-		if len(existingRecords) != 0 { // existuje pacient id
-			newRecord.FullName = existingRecords[0].FullName
+	if newRecord.FullName == "" { // is fullName is not provided
+		if len(patientRecords) != 0 { // inherit fullname from existing records
+			newRecord.FullName = patientRecords[0].FullName
 		} else {
 			ctx.JSON(http.StatusNotFound,
 				gin.H{
-					"status":  http.StatusBadRequest,
-					"message": "Patient records do not exist, provide Full Name",
-					"error":   "Patient records do not exist, provide Full Name",
+					"status":  "Not Found",
+					"message": "Patient's PN records not found, provide Full Name",
 				},
 			)
 			return
 		}
 	}
 
-	if (len(existingRecords) != 0) && newRecord.FullName != existingRecords[0].FullName {
-		ctx.JSON(http.StatusBadRequest,
+	if (len(patientRecords) != 0) && newRecord.FullName != patientRecords[0].FullName {
+		ctx.JSON(http.StatusConflict,
 			gin.H{
-				"status":  http.StatusBadRequest,
-				"message": "Patient records already exist, Full Name does not correspond to patient ID",
-				"error":   "Patient records already exist, Full Name does not correspond to patient ID",
+				"status":  "Conflict",
+				"message": "Full Name does not correspond to patient's ID (conflict with existing records)",
 			},
 		)
 		return
 	}
 
-	// Date overlap validation
-	for _, record := range existingRecords {
+	// Date validity overlap validation
+	for _, record := range patientRecords {
 		if !newRecord.ValidFrom.After(record.ValidUntil) {
-			ctx.JSON(http.StatusBadRequest,
+			ctx.JSON(http.StatusConflict,
 				gin.H{
-					"status":  http.StatusBadRequest,
-					"message": "Patient already has more up-to-date record, or records overlap",
-					"error":   "Patient already has more up-to-date record, or records overlap",
+					"status":  "Conflict",
+					"message": "Patient already has more up-to-date record or their validity overlap",
 				},
 			)
 			return
 		}
 	}
 
+	// Dreate new record in db
 	err = db.CreateDocument(ctx, newRecord.Id, &newRecord)
 
 	switch err {
@@ -139,7 +136,7 @@ func (this *implPnRegistryRecordsAPI) CreateRecord(ctx *gin.Context) {
 			http.StatusConflict,
 			gin.H{
 				"status":  "Conflict",
-				"message": "PN record already exists",
+				"message": "Record already exists",
 				"error":   err.Error(),
 			},
 		)
@@ -148,7 +145,7 @@ func (this *implPnRegistryRecordsAPI) CreateRecord(ctx *gin.Context) {
 			http.StatusBadGateway,
 			gin.H{
 				"status":  "Bad Gateway",
-				"message": "Failed to create PN record in database",
+				"message": "Failed to create record in database",
 				"error":   err.Error(),
 			},
 		)
@@ -193,7 +190,7 @@ func (this *implPnRegistryRecordsAPI) DeleteRecord(ctx *gin.Context) {
 			http.StatusNotFound,
 			gin.H{
 				"status":  "Not Found",
-				"message": "Záznam nebol nájdený",
+				"message": "Record with specified ID not found",
 				"error":   err.Error(),
 			},
 		)
@@ -202,11 +199,10 @@ func (this *implPnRegistryRecordsAPI) DeleteRecord(ctx *gin.Context) {
 			http.StatusBadGateway,
 			gin.H{
 				"status":  "Bad Gateway",
-				"message": "Nepodarilo sa vymazať záznam z databázy",
+				"message": "Failed to delete record from database",
 				"error":   err.Error(),
 			})
 	}
-
 }
 
 // GetRecord - Provides details about specific PN record
@@ -260,7 +256,7 @@ func (this *implPnRegistryRecordsAPI) GetRecord(ctx *gin.Context) {
 			http.StatusNotFound,
 			gin.H{
 				"status":  "Not Found",
-				"message": "Record not found",
+				"message": "Record with specified ID not found",
 				"error":   err.Error(),
 			},
 		)
@@ -314,7 +310,7 @@ func (this *implPnRegistryRecordsAPI) GetRecordAll(ctx *gin.Context) {
 			http.StatusBadGateway,
 			gin.H{
 				"status":  "Bad Gateway",
-				"message": "Failed to get all PN records from database",
+				"message": "Failed to load all records from database",
 				"error":   err.Error(),
 			},
 		)
@@ -347,11 +343,11 @@ func (this *implPnRegistryRecordsAPI) UpdateRecord(ctx *gin.Context) {
 
 	updatedRecord := Record{}
 
-	// Field validation
+	// Fields validation
 	if err := ctx.ShouldBindJSON(&updatedRecord); err != nil {
 		ctx.JSON(http.StatusBadRequest,
 			gin.H{
-				"status":  http.StatusBadRequest,
+				"status":  "Bad Request",
 				"message": "Invalid request body",
 				"error":   err.Error(),
 			},
@@ -363,9 +359,8 @@ func (this *implPnRegistryRecordsAPI) UpdateRecord(ctx *gin.Context) {
 	if updatedRecord.CheckUp != nil && updatedRecord.ValidFrom.After(*updatedRecord.CheckUp) {
 		ctx.JSON(http.StatusBadRequest,
 			gin.H{
-				"status":  http.StatusBadRequest,
-				"message": "Valid from is after CheckUp",
-				"error":   "Valid from is after CheckUp",
+				"status":  "Bad Request",
+				"message": "'Check Up' date can only be on or after 'Valid from' date",
 			},
 		)
 		return
@@ -373,9 +368,8 @@ func (this *implPnRegistryRecordsAPI) UpdateRecord(ctx *gin.Context) {
 	if updatedRecord.ValidFrom.After(updatedRecord.ValidUntil) {
 		ctx.JSON(http.StatusBadRequest,
 			gin.H{
-				"status":  http.StatusBadRequest,
-				"message": "Valid from is after valid until",
-				"error":   "Valid from is after valid until",
+				"status":  "Bad Request",
+				"message": "'Valid until' date can only be on or after 'Valid from' date",
 			},
 		)
 		return
@@ -387,20 +381,20 @@ func (this *implPnRegistryRecordsAPI) UpdateRecord(ctx *gin.Context) {
 	if updatedRecord.Id != recordId {
 		ctx.JSON(http.StatusBadRequest,
 			gin.H{
-				"status":  http.StatusBadRequest,
-				"message": "ID in URL does not match ID in body",
-				"error":   "ID in URL does not match ID in body",
+				"status":  "Bad Request",
+				"message": "Record ID in URL does not match ID in request body",
 			},
 		)
 		return
 	}
 
+	// Fetching patient's records by patient ID to validate conflict with updated record
 	patientRecords, err := db.FindDocuments(ctx, "patientId", updatedRecord.PatientId)
 
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError,
+		ctx.JSON(http.StatusBadGateway,
 			gin.H{
-				"status":  "Internal Server Error",
+				"status":  "Bad Gateway",
 				"message": "Failed to fetch existing records",
 				"error":   err.Error(),
 			},
@@ -409,43 +403,45 @@ func (this *implPnRegistryRecordsAPI) UpdateRecord(ctx *gin.Context) {
 	}
 
 	// Full Name validation
-	if updatedRecord.FullName == "" {
-		if len(patientRecords) == 0 {
-			ctx.JSON(http.StatusBadRequest, gin.H{
-				"status":  http.StatusBadRequest,
-				"message": "Patient records do not exist, provide Full Name",
-				"error":   "Patient records do not exist, provide Full Name",
-			})
+	if updatedRecord.FullName == "" { // if fullname not provided
+		if len(patientRecords) == 0 { // and no existing records
+			ctx.JSON(http.StatusNotFound,
+				gin.H{
+					"status":  "Not Found",
+					"message": "Patient's PN records not found, create new record (with Full Name)",
+				},
+			)
 			return
 		}
-		// Set FullName from existing record
+
+		// when records are available, set FullName from them
 		updatedRecord.FullName = patientRecords[0].FullName
 	}
 
-	var recordToUpdate *Record
-	recordIsLatest := false
+	var recordToUpdate *Record //record we are updating but from db
+	recordIsLatest := false    //if updated record is latest for patient
+
+	// Filter out updated record from all patient's records
 	patientRecords, recordToUpdate, recordIsLatest = filterUpdatedAndLatest(patientRecords, updatedRecord.Id)
 
 	// Check if FullName matches the existing records
 	if len(patientRecords) != 0 && updatedRecord.FullName != patientRecords[0].FullName {
-		// Allow update if there's only one existing record and the IDs match
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"status":  http.StatusBadRequest,
-			"message": "Patient records already exist, Full Name does not correspond to patient ID",
-			"error":   "Patient records already exist, Full Name does not correspond to patient ID",
+		// allow fullname update if there's only one existing record and the IDs match
+		ctx.JSON(http.StatusConflict, gin.H{
+			"status":  "Conflict",
+			"message": "Cannot update Full Name for this patient's ID (conflict with existing records)",
 		})
 		return
 	}
 
-	// Date validation
+	// Date validity overlap validation - if record changed patient or patient is the same and record its latest
 	if recordToUpdate == nil || (recordToUpdate != nil && recordIsLatest) {
 		for _, record := range patientRecords {
 			if !updatedRecord.ValidFrom.After(record.ValidUntil) {
-				ctx.JSON(http.StatusBadRequest,
+				ctx.JSON(http.StatusConflict,
 					gin.H{
-						"status":  http.StatusBadRequest,
-						"message": "Patient already has more up-to-date record, or records overlap",
-						"error":   "Patient already has more up-to-date record, or records overlap",
+						"status":  "Conflict",
+						"message": "Patient already has more up-to-date record or their validity overlap",
 					},
 				)
 				return
@@ -453,14 +449,14 @@ func (this *implPnRegistryRecordsAPI) UpdateRecord(ctx *gin.Context) {
 		}
 	}
 
+	// If validity dates are updated
 	validityDatesChanged := recordToUpdate != nil && (recordToUpdate.ValidFrom != updatedRecord.ValidFrom || recordToUpdate.ValidUntil != updatedRecord.ValidUntil)
 
 	if !recordIsLatest && validityDatesChanged {
 		ctx.JSON(http.StatusBadRequest,
 			gin.H{
-				"status":  http.StatusBadRequest,
-				"message": "Validity dates of older PN records can not be updated, there is more up to date PN record",
-				"error":   "Validity dates of older PN records can not be updated, there is more up to date PN record",
+				"status":  "Bad Request",
+				"message": "Validity dates of not the latest PN record can not be updated",
 			},
 		)
 		return
@@ -475,7 +471,7 @@ func (this *implPnRegistryRecordsAPI) UpdateRecord(ctx *gin.Context) {
 		ctx.JSON(http.StatusNotFound,
 			gin.H{
 				"status":  "Not Found",
-				"message": "Record not found",
+				"message": "Record with specified ID not found",
 				"error":   err.Error(),
 			},
 		)
@@ -483,7 +479,7 @@ func (this *implPnRegistryRecordsAPI) UpdateRecord(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadGateway,
 			gin.H{
 				"status":  "Bad Gateway",
-				"message": "Failed to update PN record in database",
+				"message": "Failed to update record in database",
 				"error":   err.Error(),
 			})
 

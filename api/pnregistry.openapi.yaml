@@ -24,7 +24,7 @@ paths:
       description: Returns a list of all PN records stored in the system
       responses:
         '200':
-          description: list of all PN records
+          description: List of all PN records
           content:
             application/json:
               schema:
@@ -34,6 +34,28 @@ paths:
               examples:
                 response:
                   $ref: '#/components/examples/RecordsExample'
+        '500':
+          description: Internal server error, typically when failed getting the database context
+          content:
+            application/json:
+              examples:
+                example1:
+                  $ref: '#/components/examples/DbServiceError'
+                example2:
+                  $ref: '#/components/examples/DbServiceRecordError'
+          
+        '502':
+          description: Fetching records from database failed
+          content:
+            application/json:
+              examples:
+                example1:
+                  summary: Failed to load records
+                  value:
+                    status: "Bad Gateway"
+                    message: "Failed to load all records from database"
+                    error: Some more specific error message
+
     post:
       tags:
         - PnRegistryRecords
@@ -51,7 +73,7 @@ paths:
         description: New PN record to store
         required: true
       responses:
-        '200':
+        '201':
           description: >-
             Newly created PN record
           content:
@@ -61,6 +83,104 @@ paths:
               examples:
                 updated-response:
                   $ref: '#/components/examples/RecordExample'
+        '400':
+          description: Bad Request error is returned when validation of fields fails. This can happen when date formats are incorrect (they need to be yyyy-mm-dd), dates or fields are out of range, type of field is incorrect, required field is not present and so on. See some of the examples and record schema for more details about fields.
+          content:
+            application/json:
+              examples:
+                example1:
+                  summary: Field validation error
+                  description: When validation for most of the fields fails this error messages will have "Invalid request body" with more specific error that happened in error field.
+                  value:
+                    status: "Bad Request"
+                    message: "Invalid request body"
+                    error: Some more specific error message about field that failed to validate.
+                example2:
+                  summary: CheckUp date
+                  description: CheckUp date of new record must be on or after Valid from date. This will prevents the check up from being earlier that validity of the PN record.
+                  value:
+                    status: "Bad Request"
+                    message: "'Check Up' date can only be on or after 'Valid from' date"
+                example3:
+                  summary: Valid until date
+                  description: Valid until date of new record must be on or after Valid from date. This prevent valid until being befor valid from. This means that PN can be valid for at least 1 day or more (eg. valid from 10/02 and valid until same day 10/02)
+                  value:
+                    status: "Bad Request"
+                    message: "'Valid until' date can only be on or after 'Valid from' date"
+                example4:
+                  summary: Date out of range
+                  description: Error when date of any of the date field are out of range that we use which is between 0001-01-02 and 9999-12-31
+                  value:
+                    status: "Bad Request"
+                    message: "Invalid request body"
+                    error: "Date is out of range, must be between 0001-01-02 and 9999-12-31"
+
+        '404':
+          description: When full name was not provided and there are no existing PN records of the patient from which the full name could be inherited from.
+          content:
+            application/json:
+              examples:
+                example1:
+                  summary: Full name retrieval failed
+                  description: Full Name is not required field if patient (patient ID) has some existing PN records from which the full name can be inherited. In other case full name needs to be provided in body of new record.
+                  value:
+                    status: "Not Found"
+                    message: "Patient's PN records not found, provide Full Name"
+
+        '409':
+          description: This can be returned if conflicts with existing records happen when creating new record. See examples.
+          content:
+            application/json:
+              examples:
+                example1:
+                  summary: Record already exists
+                  description: Record with specified ID already exists
+                  value:
+                    status: "Conflict"
+                    message: "Record already exists"
+                    error: "conflict: document already exists"
+                example2:
+                  summary: Validity overlap/not most recent validity
+                  description: New PN record for patient must only have its validity dates (ValidFrom, ValidUntil) more recent that patient's most recent PN record in terms of validity dates. This prevents overlaping of patient's records and not allowing new record to be issued with validity in the "past" before other records. Eg. patient has most recent record valid until 10/02 so new record can be valid from 11/02 at the earliest.
+                  value:
+                    status: "Conflict"
+                    message: "Patient already has more up-to-date record or their validity overlap"
+                example3:
+                  summary: Full Name conflict
+                  description: If patient (patient ID) already has some PN records, then full name of the newly created PN record need to match the full names associated with existing PN records with such patient ID. This prevents having multiple records with same patient ID having inconsistant full names.
+                  value:
+                    status: "Conflict"
+                    message: "Full Name does not correspond to patient's ID (conflict with existing records)"
+
+        '502':
+          description: Server failed creating new PN records in database or failed fetching existing records in the proccess to check conflicts
+          content:
+            application/json:
+              examples:
+                example1:
+                  summary: Failed to fetch existing records
+                  description: While creating new record, fetching existing records to check conflicts fails in db
+                  value:
+                    status: "Bad Gateway"
+                    message: "Failed to fetch existing records"
+                    error: Some more specific error message
+                example2:
+                  summary: Failed to create record in database
+                  value:
+                    status: "Bad Gateway"
+                    message: "Failed to create record in database"
+                    error: Some more specific error message
+
+        '500':
+          description: Internal server error, typically when failed getting the database context
+          content:
+            application/json:
+              examples:
+                example1:
+                  $ref: '#/components/examples/DbServiceError'
+                example2:
+                  $ref: '#/components/examples/DbServiceRecordError'
+
   '/records/{recordId}/':
     get:
       tags:
@@ -68,17 +188,17 @@ paths:
       summary: Provides details about specific PN record
       operationId: getRecord
       description: >-
-        By specifying recordId and entryId you can get details of particular PN record.
+        Based on provided record ID you can get details of particular PN record.
       parameters:
         - in: path
           name: recordId
-          description: pass the id of the particular PN record
+          description: Pass the id of the particular PN record
           required: true
           schema:
             type: string
       responses:
         '200':
-          description: details of required PN record with specified recordId
+          description: Detail of required PN record for specified recordId
           content:
             application/json:
               schema:
@@ -86,16 +206,49 @@ paths:
               examples:
                 response:
                   $ref: '#/components/examples/RecordExample'
+        '404':
+          description: Record with specified ID was not found in database
+          content:
+            application/json:
+              examples:
+                example1:
+                  summary: Record not found
+                  value:
+                    status: "Not Found"
+                    message: "Record with specified ID not found"
+                    error: "document not found"
+
+        '502':
+          description: Fetching record from database failed
+          content:
+            application/json:
+              examples:
+                example1:
+                  summary: Failed to load record
+                  value:
+                    status: "Bad Gateway"
+                    message: "Failed to load record from database"
+                    error: Some more specific error message
+        '500':
+          description: Internal server error, typically when failed getting the database context
+          content:
+            application/json:
+              examples:
+                example1:
+                  $ref: '#/components/examples/DbServiceError'
+                example2:
+                  $ref: '#/components/examples/DbServiceRecordError'
+        
     put:
       tags:
         - PnRegistryRecords
-      summary: Updates specific PN record
+      summary: Updates fields of specific PN record
       operationId: updateRecord
       description: Use this method to update content of specific PN record.
       parameters:
         - in: path
           name: recordId
-          description: pass the id of the particular PN record
+          description: Pass the ID of the particular PN record
           required: true
           schema:
             type: string
@@ -112,7 +265,7 @@ paths:
       responses:
         '200':
           description: >-
-            PN record with updated details
+            PN record with updated details (fields)
           content:
             application/json:
               schema:
@@ -120,83 +273,240 @@ paths:
               examples:
                 response:
                   $ref: '#/components/examples/RecordExample'
+        '400':
+          description: Bad Request error is returned when validation of fields fails. This can happen when date formats are incorrect (they need to be yyyy-mm-dd), dates or fields are out of range, type of field is incorrect, required field is not present and so on. See some of the examples and record schema for more details about fields.
+          content:
+            application/json:
+              examples:
+                example1:
+                  summary: Field validation error
+                  description: When validation for most of the fields fails this error messages will have "Invalid request body" with more specific error that happened in error field.
+                  value:
+                    status: "Bad Request"
+                    message: "Invalid request body"
+                    error: Some more specific error message about field that failed to validate.
+                example2:
+                  summary: CheckUp date
+                  description: CheckUp date of new record must be on or after Valid from date. This will prevents the check up from being earlier that validity of the PN record.
+                  value:
+                    status: "Bad Request"
+                    message: "'Check Up' date can only be on or after 'Valid from' date"
+                example3:
+                  summary: Valid until date
+                  description: Valid until date of new record must be on or after Valid from date. This prevent valid until being before valid from. This means that PN can be valid for at least 1 day or more (eg. valid from 10/02 and valid until same day 10/02)
+                  value:
+                    status: "Bad Request"
+                    message: "'Valid until' date can only be on or after 'Valid from' date"
+                example4:
+                  summary: Date out of range
+                  description: Error when date of any of the date field are out of range that we use which is between 0001-01-02 and 9999-12-31
+                  value:
+                    status: "Bad Request"
+                    message: "Invalid request body"
+                    error: "Date is out of range, must be between 0001-01-02 and 9999-12-31"
+                example5:
+                  summary: Record ID does not match body ID
+                  description: Error when record ID in URL does not match record ID in body of request.
+                  value:
+                    status: "Bad Request"
+                    message: "Record ID in URL does not match ID in request body" 
+                example6:
+                  summary: Updating not the latest record
+                  description: For simplicity of date ovarlaps Valid From and Valid Until date cannot be updated if the record is not the latest for the patient ID in terms of these dates.
+                  value:
+                    status: "Bad Request"
+                    message: "Validity dates of not the latest PN record can not be updated"
+        '404':
+          description: When full name was not provided and there are no existing PN records of the patient (patient ID) from which the full name could be inherited from.
+          content:
+            application/json:
+              examples:
+                example1:
+                  summary: Full name retrieval failed
+                  description: Full Name is not required field if patient (patient ID) has some existing PN records from which the full name can be inherited. In other case full name needs to be provided in body of record.
+                  value:
+                    status: "Not Found"
+                    message: "Patient's PN records not found, create new record (with Full Name)"
+                example2:
+                  summary: Record not found
+                  value:
+                    status: "Not Found"
+                    message: "Record with specified ID not found"
+                    error: "document not found"
+
+        '409':
+          description: This can be returned if conflicts with existing records happen when creating updating record. See examples.
+          content:
+            application/json:
+              examples:
+                example1:
+                  summary: FullName conflict with exists records
+                  description: When fullname is provided it cannot be updated if patient (patient ID) already has other PN records. This prevents inconsistant fullnames. When patient has only 1 record which is being updated then it is possible.
+                  value:
+                    status: "Conflict"
+                    message: "Cannot update Full Name for this patient's ID (conflict with existing records)"
+                example2:
+                  summary: Validity overlap/not most recent validity
+                  description: Updated PN record must only have its validity dates (ValidFrom, ValidUntil) more recent that patient's other most recent PN record in terms of validity dates. This prevents overlaping of patient's records and not allowing updated record to be issued with validity in the "past" before other records. Eg. patient has second most recent record valid until 10/02 so the most recent record being updated can be valid from 11/02 at the earliest.
+                  value:
+                    status: "Conflict"
+                    message: "Patient already has more up-to-date record or their validity overlap"
+
+        '502':
+          description: Server failed updating PN record in database or failed fetching existing records in the proccess to check conflicts.
+          content:
+            application/json:
+              examples:
+                example1:
+                  summary: Failed to fetch existing records
+                  description: While updating record, fetching existing records to check conflicts fails in db
+                  value:
+                    status: "Bad Gateway"
+                    message: "Failed to fetch existing records"
+                    error: Some more specific error message
+                example2:
+                  summary: Failed to update record in database
+                  value:
+                    status: "Bad Gateway"
+                    message: "Failed to update record in database"
+                    error: Some more specific error message 
+
+        '500':
+          description: Internal server error, typically when failed getting the database context
+          content:
+            application/json:
+              examples:
+                example1:
+                  $ref: '#/components/examples/DbServiceError'
+                example2:
+                  $ref: '#/components/examples/DbServiceRecordError'
     delete:
       tags:
         - PnRegistryRecords
       summary: Deletes specific PN record
       operationId: deleteRecord
-      description: Use this method to delete the specific PN record from list of all PN record in the system.
+      description: Deletes the specific PN record (based on record ID) from list of all PN records in the system.
       parameters:
         - in: path
           name: recordId
-          description: pass the id of the particular PN record
+          description: pass the ID of the particular PN record
           required: true
           schema:
             type: string
       responses:
         '204':
-          description: Record deleted
+          description: Record successfully deleted
+        '404':
+          description: Record with specified ID was not found in database
+          content:
+            application/json:
+              examples:
+                example1:
+                  summary: Record not found
+                  value:
+                    status: "Not Found"
+                    message: "Record with specified ID not found"
+                    error: "document not found"
+        '502':
+          description: Deleting record from database failed
+          content:
+            application/json:
+              examples:
+                example1:
+                  summary: Failed deleting record
+                  value:
+                    status: "Bad Gateway"
+                    message: "Failed to delete record from database"
+                    error: Some more specific error message
+        '500':
+          description: Internal server error, typically when failed getting the database context
+          content:
+            application/json:
+              examples:
+                example1:
+                  $ref: '#/components/examples/DbServiceError'
+                example2:
+                  $ref: '#/components/examples/DbServiceRecordError'
 components:
   schemas:
     Record:
       type: object
-      required: [id, patientId, employer, reason, issued, validFrom, validUntil,checkUpDone]
+      required: [id, patientId, employer, reason, issued, validFrom, validUntil]
       properties:
         id:
           type: string
           example: x321ab3
-          description: Unique identifier of PN record
-        fullName:
-          type: string
-          example: Matúš Bojko
-          description: Full name of pacient whom the PN record was issued
+          description: Unique identifier of PN record.
         patientId:
           type: string
+          maxLength: 10
+          pattern: '^\d{1,10}$'
           example: '9912105126'
           description: Unique identifier of the patient - in slovakia its rodné číslo
+        fullName:
+          type: string
+          maxLength: 50
+          example: Matúš Bojkooooo
+          description: Full name of pacient whom the PN record was issued. When creating or updating a PN record, this field is not required if patient (patient ID) already has existing PN records from which the fullname will be inherited. Other wise it needs to be specified. When you provide the Full Name there is a contrain that it needs to match full name of other patient's (patiend ID) Pn records to avoid conflicting names. This is not the case if you update the full name of the only record the patient has.
         employer:
           type: string
+          maxLength: 50
           example: Volkswagen Slovakia
-          description: Pacient's employer linked to the issued PN record
+          description: Pacient's employer linked to the issued PN record.
         reason:
           type: string
+          enum: [choroba,uraz,choroba z povolania,karantenne opatrenie/izolacia,pracovny uraz,ine]
           example: choroba
-          description: Reason/couse why the PN was issued for the pacient
+          description: Reason/couse why the PN was issued for the pacient. From the official ePN in Slovakia it can have only six possible string values. This values are validated.
         issued:
           type: string
-          format: date-time
+          format: date
           example: '2023-12-20'
-          description: Date when the PN record was created (issued)
+          description: Date when the PN record was created (issued). It need to have format dd-mm-yyyy in range between 0001-01-02 and 9999-12-31. This format and range are validated.
         validFrom:
           type: string
           format: date
           example: '2023-12-23'
-          description: Date since the issued PN record is valid
+          description: Date since the issued PN record is valid. On this date validity of record start. It need to have format dd-mm-yyyy in range between 0001-01-02 and 9999-12-31. If patient already have some existing PN records this date needs to be at least day after 'valid until' date of patient's latest record in terms of validity. Eg. existing latest record in terms of validity (Valid Until) ends on 10/02 so new PN record validity need to start at least on 11/02. Other constrain is that this field cannot be updated if its not the latest record in terms of validity for such patient ID. This constrains, range and format of this date are validated.
         validUntil:
           type: string
           format: date
           example: '2024-02-23'
-          description: Date when the issued PN record validity ends (expires)
+          description: Date when the issued PN record validity ends (expires). On this date validity of record ends. It need to have format dd-mm-yyyy in range between 0001-01-02 and 9999-12-31. PN record can be issued for at least 1 day so this date need to be on 'Valid from' day or later. This field cannot be updated if its not the latest record in terms of validity for such patient ID. This constrains are validated along with format and range.
         checkUp:
           type: string
           format: date
           example: '2024-01-10'
-          description: Date when the check up associated with PN record is planned
+          description: Date when the check up associated with PN record is planned. It need to have format dd-mm-yyyy in range between 0001-01-02 and 9999-12-31. Checkup date need to be on day of 'Valid from' or later. This is validated with format and range. Omit this field if you dont want to specify it.
         checkUpDone:
           type: boolean
           example: true
-          description: If the check up associated with PN record was done
+          description: If the check up associated with PN record was done. If this field is not provided then it created as 'false' at default.
   examples:
+    DbServiceError:
+      summary: DB context not found
+      description: Error when getting the context of database for further connection to it
+      value:
+        status: "Internal Server Error"
+        message: "db not found"
+        error: "db not found"
+    DbServiceRecordError:
+      summary: DB service context not type DbService
+      description: Error when context of database service is not type DbService
+      value: 
+        status: "Internal Server Error"
+        message: "db_service context is not of type db_service.DbService"
+        error: "cannot cast db_service context to db_service.DbService"
     RecordExample:
       summary: PN record issued for Lubomir Zlostný
       description: |
-        Record represents a sick-leave (PN) issued for pacient by their doctor
+        Record represents a sick-leave (PN) issued for pacient by their doctor. This is one of PN records of Ľudomír Zlostný with patient ID 9912105126
       value:
         id: x321ab3
         fullName: Ľudomír Zlostný
         patientId: '9912105126'
         employer: Volkswagen Slovakia
-        reason: úraz
+        reason: uraz
         issued: '2023-12-20'
         validFrom: '2023-12-29'
         validUntil: '2024-02-29'
@@ -220,7 +530,7 @@ components:
           fullName: Lucia Hanuláková
           patientId: '0155171489'
           employer: 'Lekáreň Dr.Max'
-          reason: 'pracovný úraz'
+          reason: 'pracovny uraz'
           issued: '2024-02-21'
           validFrom: '2024-02-21'
           validUntil: '2022-05-12'
@@ -230,7 +540,7 @@ components:
           fullName: Lucia Hanuláková
           patientId: '0155171489'
           employer: 'Lekáreň Benu'
-          reason: 'iné'
+          reason: 'ine'
           issued: '2024-09-29'
           validFrom: '2024-09-29'
           validUntil: '2024-10-29'

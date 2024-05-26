@@ -1,0 +1,4 @@
+internal/pn_registry/api_*
+internal/pn_registry/routers.go
+build/
+deployments/

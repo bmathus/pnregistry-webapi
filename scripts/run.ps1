@@ -14,7 +14,7 @@ $env:PN_REGISTRY_API_MONGODB_USERNAME="root"
 $env:PN_REGISTRY_API_MONGODB_PASSWORD="neUhaDnes"
 
 function mongo {
-    docker compose --file ${ProjectRoot}/deployments/docker-compose/compose.yaml $args
+    docker compose --file ${ProjectRoot}/docker-compose/compose.yaml $args
 }
 
 switch ($command) {

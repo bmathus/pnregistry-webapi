@@ -7,9 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bmathus/pnregistry-webapi/api"
 	"github.com/bmathus/pnregistry-webapi/internal/db_service"
 	"github.com/bmathus/pnregistry-webapi/internal/pn_registry"
+	"github.com/bmathus/pnregistry-webapi/internal/pn_registry/models"
+	"github.com/bmathus/pnregistry-webapi/internal/pn_registry/utils"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
@@ -41,7 +42,7 @@ func main() {
 	engine.Use(corsMiddleware)
 
 	// setup context update middleware
-	dbService := db_service.NewMongoService[pn_registry.Record](db_service.MongoServiceConfig{})
+	dbService := db_service.NewMongoService[models.Record](db_service.MongoServiceConfig{})
 	defer dbService.Disconnect(context.Background())
 	engine.Use(func(ctx *gin.Context) {
 		ctx.Set("db_service", dbService)
@@ -50,13 +51,12 @@ func main() {
 
 	// register custom validators for patientId,fullname,employer and reason fields
 	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
-		v.RegisterValidation("only-digits-max-length-10", pn_registry.PatientIDValidator)
-		v.RegisterValidation("max-length-50", pn_registry.MaxLengthValidator)
-		v.RegisterValidation("not-valid-reason-value", pn_registry.ReasonValidator)
+		v.RegisterValidation("only-digits-max-length-10", utils.PatientIDValidator)
+		v.RegisterValidation("max-length-50", utils.MaxLengthValidator)
+		v.RegisterValidation("not-valid-reason-value", utils.ReasonValidator)
 	}
 
 	// request routings
 	pn_registry.AddRoutes(engine)
-	engine.GET("/openapi", api.HandleOpenApi)
 	engine.Run(":" + port)
 }

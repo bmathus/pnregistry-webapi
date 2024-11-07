@@ -1,4 +1,4 @@
-package pn_registry
+package models
 
 import (
 	"time"

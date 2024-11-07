@@ -1,8 +1,9 @@
-package pn_registry
+package utils
 
 import (
 	"regexp"
 
+	"github.com/bmathus/pnregistry-webapi/internal/pn_registry/models"
 	"github.com/go-playground/validator/v10"
 )
 
@@ -22,12 +23,12 @@ func MaxLengthValidator(fl validator.FieldLevel) bool {
 func ReasonValidator(fl validator.FieldLevel) bool {
 	// validation vith struct for O(1) speed
 	var ValidReasons = map[string]struct{}{
-		Choroba:                     {},
-		Uraz:                        {},
-		ChorobaZPovolania:           {},
-		KarantenneOpatrenieIzolacia: {},
-		PracovnyUraz:                {},
-		Ine:                         {},
+		models.Choroba:                     {},
+		models.Uraz:                        {},
+		models.ChorobaZPovolania:           {},
+		models.KarantenneOpatrenieIzolacia: {},
+		models.PracovnyUraz:                {},
+		models.Ine:                         {},
 	}
 
 	reason := fl.Field().String()

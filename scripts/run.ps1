@@ -14,14 +14,11 @@ $env:PN_REGISTRY_API_MONGODB_USERNAME="root"
 $env:PN_REGISTRY_API_MONGODB_PASSWORD="neUhaDnes"
 
 function mongo {
-    docker compose --file ${ProjectRoot}/docker-compose/compose.yaml $args
+    docker compose --file ${ProjectRoot}/build/docker-compose/compose.yaml $args
 }
 
 switch ($command) {
     
-    "openapi" {
-        docker run --rm -ti -v ${ProjectRoot}:/local openapitools/openapi-generator-cli generate -c /local/scripts/generator-cfg.yaml
-    }
     "start" {
         try {
             mongo up --detach

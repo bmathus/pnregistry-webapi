@@ -1,17 +1,19 @@
-package pn_registry
+package utils
 
 import (
 	"slices"
 	"time"
+
+	"github.com/bmathus/pnregistry-webapi/internal/pn_registry/models"
 )
 
 // Utility function witch filters out and return updated record from all patient's records
-func filterUpdatedAndLatest(patientRecords []Record, updatedRecordId string) ([]Record, *Record, bool) {
+func FilterUpdatedAndLatest(patientRecords []models.Record, updatedRecordId string) ([]models.Record, *models.Record, bool) {
 
-	var recordToUpdate *Record
-	var latestRecord *Record
+	var recordToUpdate *models.Record
+	var latestRecord *models.Record
 
-	filteredRecords := slices.DeleteFunc(patientRecords, func(r Record) bool {
+	filteredRecords := slices.DeleteFunc(patientRecords, func(r models.Record) bool {
 
 		recordMatch := r.Id == updatedRecordId
 

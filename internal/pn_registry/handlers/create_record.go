@@ -4,65 +4,21 @@ import (
 	"net/http"
 
 	"github.com/bmathus/pnregistry-webapi/internal/db_service"
-	"github.com/bmathus/pnregistry-webapi/internal/pn_registry/models"
+	"github.com/bmathus/pnregistry-webapi/internal/pn_registry/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
 func CreateRecord(ctx *gin.Context) {
-	value, exists := ctx.Get("db_service")
-	if !exists {
-		ctx.JSON(http.StatusInternalServerError,
-			gin.H{
-				"status":  "Internal Server Error",
-				"message": "db not found",
-				"error":   "db not found",
-			})
+	db, message, err := utils.GetDatabaseService(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": "Internal Server Error", "message": message, "error": err.Error()})
 		return
 	}
 
-	db, ok := value.(db_service.DbService[models.Record])
-	if !ok {
-		ctx.JSON(http.StatusInternalServerError,
-			gin.H{
-				"status":  "Internal Server Error",
-				"message": "db_service context is not of type db_service.DbService",
-				"error":   "cannot cast db_service context to db_service.DbService",
-			})
-		return
-	}
-
-	newRecord := models.Record{}
-
-	// Fields validation
-	if err := ctx.ShouldBindJSON(&newRecord); err != nil {
-		ctx.JSON(http.StatusBadRequest,
-			gin.H{
-				"status":  "Bad Request",
-				"message": "Invalid request body",
-				"error":   err.Error(),
-			},
-		)
-		return
-	}
-
-	// Dates validation
-	if newRecord.CheckUp != nil && newRecord.ValidFrom.After(*newRecord.CheckUp) {
-		ctx.JSON(http.StatusBadRequest,
-			gin.H{
-				"status":  "Bad Request",
-				"message": "'Check Up' date can only be on or after 'Valid from' date",
-			},
-		)
-		return
-	}
-	if newRecord.ValidFrom.After(newRecord.ValidUntil) {
-		ctx.JSON(http.StatusBadRequest,
-			gin.H{
-				"status":  "Bad Request",
-				"message": "'Valid until' date can only be on or after 'Valid from' date",
-			},
-		)
+	newRecord, err := utils.RequestBodyValidator(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"status": "Bad Request", "message": "Invalid request body", "error": err.Error()})
 		return
 	}
 
@@ -72,58 +28,27 @@ func CreateRecord(ctx *gin.Context) {
 
 	// Fetching patient's records by patient ID to validate conflict with new record
 	patientRecords, err := db.FindDocuments(ctx, "patientId", newRecord.PatientId)
-
 	if err != nil {
-		ctx.JSON(http.StatusBadGateway,
-			gin.H{
-				"status":  "Bad Gateway",
-				"message": "Failed to fetch existing records",
-				"error":   err.Error(),
-			},
-		)
+		ctx.JSON(http.StatusBadGateway, gin.H{"status": "Bad Gateway", "message": "Failed to fetch existing records", "error": err.Error()})
 		return
 	}
 
-	//Full Name validation
-	if newRecord.FullName == "" { // is fullName is not provided
-		if len(patientRecords) != 0 { // inherit fullname from existing records
-			newRecord.FullName = patientRecords[0].FullName
-		} else {
-			ctx.JSON(http.StatusNotFound,
-				gin.H{
-					"status":  "Not Found",
-					"message": "Patient's PN records not found, provide Full Name",
-				},
-			)
-			return
-		}
-	}
-
-	if (len(patientRecords) != 0) && newRecord.FullName != patientRecords[0].FullName {
-		ctx.JSON(http.StatusConflict,
-			gin.H{
-				"status":  "Conflict",
-				"message": "Full Name does not correspond to patient's ID (conflict with existing records)",
-			},
-		)
+	// Full name validation and set
+	status, err := utils.FullNameSetterAndValidator(newRecord, patientRecords)
+	if err != nil {
+		ctx.JSON(status, gin.H{"status": http.StatusText(status), "message": err.Error()})
 		return
 	}
 
 	// Date validity overlap validation
-	for _, record := range patientRecords {
-		if !newRecord.ValidFrom.After(record.ValidUntil) {
-			ctx.JSON(http.StatusConflict,
-				gin.H{
-					"status":  "Conflict",
-					"message": "Patient already has more up-to-date record or their validity overlap",
-				},
-			)
-			return
-		}
+	err = utils.OverlapValidator(newRecord, patientRecords)
+	if err != nil {
+		ctx.JSON(http.StatusConflict, gin.H{"status": "Conflict", "message": err.Error()})
+		return
 	}
 
 	// Dreate new record in db
-	err = db.CreateDocument(ctx, newRecord.Id, &newRecord)
+	err = db.CreateDocument(ctx, newRecord.Id, newRecord)
 
 	switch err {
 	case nil:

@@ -22,6 +22,7 @@ type DbService[DocType interface{}] interface {
 	UpdateDocument(ctx context.Context, id string, document *DocType) error
 	DeleteDocument(ctx context.Context, id string) error
 	Disconnect(ctx context.Context) error
+	ClearCollection(ctx context.Context) error
 }
 
 var ErrNotFound = fmt.Errorf("document not found")
@@ -298,5 +299,23 @@ func (this *mongoSvc[DocType]) DeleteDocument(ctx context.Context, id string) er
 	}
 
 	_, err = collection.DeleteOne(ctx, bson.D{{Key: "id", Value: id}})
+	return err
+}
+
+func (this *mongoSvc[DocType]) ClearCollection(ctx context.Context) error {
+	ctx, contextCancel := context.WithTimeout(ctx, this.Timeout)
+	defer contextCancel()
+
+	client, err := this.connect(ctx)
+	if err != nil {
+		return err
+	}
+	collection := client.Database(this.DbName).Collection(this.Collection)
+
+	_, err = collection.DeleteMany(ctx, bson.D{})
+
+	if err != nil {
+		log.Printf("Failed to clear collection %s: %v", this.Collection, err)
+	}
 	return err
 }

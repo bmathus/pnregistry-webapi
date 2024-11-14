@@ -1,9 +1,12 @@
 package utils
 
 import (
+	"fmt"
+	"net/http"
 	"regexp"
 
 	"github.com/bmathus/pnregistry-webapi/internal/pn_registry/models"
+	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 )
 
@@ -34,4 +37,48 @@ func ReasonValidator(fl validator.FieldLevel) bool {
 	reason := fl.Field().String()
 	_, valid := ValidReasons[reason]
 	return valid
+}
+
+func RequestBodyValidator(ctx *gin.Context) (*models.Record, error) {
+	newRecord := models.Record{}
+
+	if err := ctx.ShouldBindJSON(&newRecord); err != nil {
+		return nil, err
+	}
+
+	if newRecord.CheckUp != nil && newRecord.ValidFrom.After(*newRecord.CheckUp) {
+		return nil, fmt.Errorf("'Check Up' date can only be on or after 'Valid from' date")
+	}
+
+	if newRecord.ValidFrom.After(newRecord.ValidUntil) {
+		return nil, fmt.Errorf("'Valid until' date can only be on or after 'Valid from' date")
+	}
+	return &newRecord, nil
+
+}
+
+func FullNameSetterAndValidator(newRecord *models.Record, patientRecords []models.Record) (int, error) {
+	if newRecord.FullName == "" { // is fullName is not provided
+		if len(patientRecords) != 0 { // inherit fullname from existing records
+			newRecord.FullName = patientRecords[0].FullName
+		} else {
+			return http.StatusNotFound, fmt.Errorf("Patient's PN records not found, provide Full Name")
+		}
+	}
+
+	if (len(patientRecords) != 0) && newRecord.FullName != patientRecords[0].FullName {
+		return http.StatusConflict, fmt.Errorf("Full Name does not correspond to patient's ID (conflict with existing records)")
+	}
+
+	return http.StatusOK, nil
+}
+
+func OverlapValidator(newRecord *models.Record, patientRecords []models.Record) error {
+	for _, record := range patientRecords {
+		if !newRecord.ValidFrom.After(record.ValidUntil) {
+			return fmt.Errorf("Patient already has more up-to-date record or their validity overlap")
+		}
+	}
+	return nil
+
 }

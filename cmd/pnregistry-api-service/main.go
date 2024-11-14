@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -43,8 +44,12 @@ func main() {
 
 	// setup context update middleware
 	dbService := db_service.NewMongoService[models.Record](db_service.MongoServiceConfig{})
+	fmt.Println(dbService)
 	defer dbService.Disconnect(context.Background())
 	engine.Use(func(ctx *gin.Context) {
+		if dbService == nil {
+			log.Fatal("TestDbService is nil in SetupTestEngine")
+		}
 		ctx.Set("db_service", dbService)
 		ctx.Next()
 	})

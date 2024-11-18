@@ -38,11 +38,11 @@ switch ($command) {
         mongo -composeFile "compose.yaml" up
     }
     "start-test-db" {
-        # Start the test MongoDB instance only
+        # Start the test MongoDB + mongo express instance
         mongo -composeFile "compose-test.yaml" up --detach
     }
     "stop-test-db" {
-        # Stop the test MongoDB instance only
+        # Stop the test MongoDB + mongo express instance only
         mongo -composeFile "compose-test.yaml" down
     }
     "test" {
@@ -58,7 +58,7 @@ switch ($command) {
             mongo -composeFile "compose-test.yaml" up --detach
 
             # Run tests with test-specific environment variables
-            & go test -v ./...
+            & go test -v ./internal/integration_tests/...
         } finally {
             # Clean up the test MongoDB instance after tests finish
             mongo -composeFile "compose-test.yaml" down

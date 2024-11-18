@@ -1,5 +1,5 @@
 // internal/integration_tests/handlers_tests/create_record_test.go
-package handlers
+package integrationtests
 
 import (
 	"bytes"
@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bmathus/pnregistry-webapi/internal/db_service"
 	"github.com/bmathus/pnregistry-webapi/internal/pn_registry"
 	"github.com/bmathus/pnregistry-webapi/internal/pn_registry/models"
 	"github.com/gin-gonic/gin"
@@ -27,16 +28,18 @@ func MakeCreateRecordRequest(recordString string, engine *gin.Engine) *httptest.
 
 // Create Record -> DbService integration
 func TestCreateRecordNoDbService(t *testing.T) {
+	//Setup engine without db_service in context
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 	pn_registry.AddRoutes(engine)
 
+	// Make test request
 	req, _ := http.NewRequest(http.MethodPost, "/api/records/", nil)
-
 	w := httptest.NewRecorder()
 	engine.ServeHTTP(w, req)
-	assert.Equal(t, http.StatusInternalServerError, w.Code, "Expected HTTP status 500 Internal Server Error")
 
+	// Assert returned status code and body
+	assert.Equal(t, http.StatusInternalServerError, w.Code, "Expected HTTP status 500 Internal Server Error")
 	expectedResponse := `{
 	"error":"db not found",
 	"message":"db not found",
@@ -45,31 +48,32 @@ func TestCreateRecordNoDbService(t *testing.T) {
 }
 
 func TestCreateRecordWrongDbService(t *testing.T) {
+	//Setup engine with wrong db_service in context
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
-
 	engine.Use(func(ctx *gin.Context) {
 		ctx.Set("db_service", "incorrectType")
 		ctx.Next()
 	})
-
 	pn_registry.AddRoutes(engine)
 
+	// Make test request
 	req, _ := http.NewRequest(http.MethodPost, "/api/records/", nil)
 	w := httptest.NewRecorder()
 	engine.ServeHTTP(w, req)
 
+	// Assert returned status code and body
 	expectedResponse := `{
 	"error":"cannot cast db_service context to db_service.DbService",
 	"message":"db_service context is not of type db_service.DbService",
 	"status":"Internal Server Error"}`
-
 	assert.Equal(t, http.StatusInternalServerError, w.Code, "Expected HTTP status 500 Internal Server Error")
 	assert.JSONEq(t, expectedResponse, w.Body.String(), "Expected JSON response does not match")
 }
 
 // Create record -> Find Document -> Create Document (if stored in database)
 func TestCreateRecord(t *testing.T) {
+	//Setup test engine and test record
 	engine := SetupTestEngine()
 	record := `{
         "id": "@new",
@@ -85,16 +89,18 @@ func TestCreateRecord(t *testing.T) {
 	var expectedRecord models.Record
 	json.Unmarshal([]byte(record), &expectedRecord)
 
+	//Make request and save record from responce
 	w := MakeCreateRecordRequest(record, engine)
 	var returnedRecord models.Record
 	err := json.Unmarshal(w.Body.Bytes(), &returnedRecord)
 	assert.NoError(t, err)
 
+	// Assert new ID and returned record
 	assert.NotEqual(t, "@new", returnedRecord.Id, "Expected generated ID instead of placeholder '@new'")
 	expectedRecord.Id = returnedRecord.Id
 	assert.Equal(t, expectedRecord, returnedRecord, "Returned record expected to match the request record")
 
-	// check if it stored in the database
+	// Check if new record is stored in the database
 	storedRecord, err := testDbService.FindDocument(context.Background(), returnedRecord.Id)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedRecord, *storedRecord, "Stored record expected to match the request record")
@@ -147,6 +153,39 @@ func TestCreateRecordConflict(t *testing.T) {
 		err := testDbService.ClearCollection(context.Background())
 		assert.NoError(t, err, "Expected the collection to be cleared after the test")
 	})
+}
+
+// Create record -> Find Document (connection fail)
+func TestCreateRecordConnectionFailed(t *testing.T) {
+	originalDbService := testDbService
+	testDbService = db_service.NewMongoService[models.Record](db_service.MongoServiceConfig{
+		ServerHost: "localhost",
+		ServerPort: 27018,
+		UserName:   "wronguser",
+		Password:   "wrongpass",
+		DbName:     "pn-registry-test",
+		Collection: "record",
+	})
+
+	engine := SetupTestEngine()
+
+	// Valid record to create
+	record := `{
+		"id": "@new",
+		"fullName": "John Doe",
+		"patientId": "12345678",
+		"employer": "Example Corp",
+		"reason": "choroba",
+		"issued": "2024-11-08",
+		"validFrom": "2024-11-08",
+		"validUntil": "2024-11-09",
+		"checkUp": "2024-11-08"
+	}`
+	w := MakeCreateRecordRequest(record, engine)
+	assert.Equal(t, http.StatusBadGateway, w.Code, "Expected HTTP status 502 Bad Gateway")
+	assert.Contains(t, w.Body.String(), "connection() error occurred during connection handshake: auth error")
+
+	testDbService = originalDbService
 }
 
 // Create record -> Request Body Validator (missing field)
@@ -205,7 +244,7 @@ func TestCreateRecordValidUntilDateValidation(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "'Valid until' date can only be on or after 'Valid from' date")
 }
 
-// Create record -> Request Body validator (custom date marshaling)
+// Create record -> Request Body validator -> custom date marshaling
 func TestCreateRecordDateValidation(t *testing.T) {
 	engine := SetupTestEngine()
 	record := `{
@@ -281,8 +320,8 @@ func TestCreateRecordMaxLengthValidation(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "Key: 'Record.FullName' Error:Field validation for 'FullName' failed on the 'max-length-50' tag")
 }
 
-// Create record -> Full name setter and validator
-func TestCreateRecordFullNameSettingAndValidation(t *testing.T) {
+// Create record -> Full name setter
+func TestCreateRecordFullNameSetting(t *testing.T) {
 	engine := SetupTestEngine()
 	record := `{
         "id": "@new",
@@ -296,11 +335,43 @@ func TestCreateRecordFullNameSettingAndValidation(t *testing.T) {
 		"checkUp": "2024-11-08"
 	}`
 	w := MakeCreateRecordRequest(record, engine)
-	assert.Equal(t, http.StatusNotFound, w.Code, "Expected HTTP status 400 Bad Request")
-	assert.Contains(t, w.Body.String(), "Patient's PN records not found, provide Full Name")
+	assert.Equal(t, http.StatusNotFound, w.Code, "Expected HTTP status 404 Not found")
+	assert.Contains(t, w.Body.String(), "Patient's PN records not found to inherit Full Name")
 }
 
-//mozno todo este druhy test case pre full name setter validator
+// Create record -> Full name validator
+func TestCreateRecordFullNameValidation(t *testing.T) {
+	engine := SetupTestEngine()
+	record := `{
+        "id": "@new",
+        "fullName": "Matus Bojko",
+        "patientId": "999",
+        "employer": "Example Corp",
+        "reason": "choroba",
+        "issued": "2024-11-08",
+        "validFrom": "2024-11-08",
+        "validUntil": "2024-11-08",
+		"checkUp": "2024-11-08"
+	}`
+	w := MakeCreateRecordRequest(record, engine)
+	assert.Equal(t, http.StatusCreated, w.Code, "Expected HTTP status 201 Created")
+
+	recordSamePatientDifName := `{
+	    "id": "@new",
+	    "fullName": "Jozef Bojko",
+	    "patientId": "999",
+	    "employer": "Example Corp",
+	    "reason": "choroba",
+	    "issued": "2024-11-11",
+	    "validFrom": "2024-11-11",
+	    "validUntil": "2024-11-11",
+		"checkUp": "2024-11-11"
+	}`
+
+	w = MakeCreateRecordRequest(recordSamePatientDifName, engine)
+	assert.Equal(t, http.StatusConflict, w.Code, "Expected HTTP status 409 Conflict")
+	assert.Contains(t, w.Body.String(), "Full Name does not correspond to patient (conflict with existing records)")
+}
 
 // Create record -> Overlap validator
 func TestCreateRecordDateOverlapValidation(t *testing.T) {

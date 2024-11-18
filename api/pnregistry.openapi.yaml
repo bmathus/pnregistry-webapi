@@ -125,7 +125,7 @@ paths:
                   description: Full Name is not required field if patient (patient ID) has some existing PN records from which the full name can be inherited. In other case full name needs to be provided in body of new record.
                   value:
                     status: "Not Found"
-                    message: "Patient's PN records not found, provide Full Name"
+                    message: "Patient's PN records not found to inherit Full Name"
 
         '409':
           description: This can be returned if conflicts with existing records happen when creating new record. See examples.
@@ -150,7 +150,7 @@ paths:
                   description: If patient (patient ID) already has some PN records, then full name of the newly created PN record need to match the full names associated with existing PN records with such patient ID. This prevents having multiple records with same patient ID having inconsistant full names.
                   value:
                     status: "Conflict"
-                    message: "Full Name does not correspond to patient's ID (conflict with existing records)"
+                    message: "Full Name does not correspond to patient (conflict with existing records)"
 
         '502':
           description: Server failed creating new PN records in database or failed fetching existing records in the proccess to check conflicts
@@ -326,7 +326,7 @@ paths:
                   description: Full Name is not required field if patient (patient ID) has some existing PN records from which the full name can be inherited. In other case full name needs to be provided in body of record.
                   value:
                     status: "Not Found"
-                    message: "Patient's PN records not found, create new record (with Full Name)"
+                    message: "Patient's PN records not found to inherit Full Name"
                 example2:
                   summary: Record not found
                   value:
@@ -344,7 +344,7 @@ paths:
                   description: When fullname is provided it cannot be updated if patient (patient ID) already has other PN records. This prevents inconsistant fullnames. When patient has only 1 record which is being updated then it is possible.
                   value:
                     status: "Conflict"
-                    message: "Cannot update Full Name for this patient's ID (conflict with existing records)"
+                    message: "Full Name does not correspond to patient (conflict with existing records)"
                 example2:
                   summary: Validity overlap/not most recent validity
                   description: Updated PN record must only have its validity dates (ValidFrom, ValidUntil) more recent that patient's other most recent PN record in terms of validity dates. This prevents overlaping of patient's records and not allowing updated record to be issued with validity in the "past" before other records. Eg. patient has second most recent record valid until 10/02 so the most recent record being updated can be valid from 11/02 at the earliest.

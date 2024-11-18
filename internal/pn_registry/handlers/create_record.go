@@ -10,7 +10,7 @@ import (
 )
 
 func CreateRecord(ctx *gin.Context) {
-	db, message, err := utils.GetDatabaseService(ctx)
+	db, message, err := db_service.GetDatabaseService(ctx)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"status": "Internal Server Error", "message": message, "error": err.Error()})
 		return
@@ -34,7 +34,12 @@ func CreateRecord(ctx *gin.Context) {
 	}
 
 	// Full name validation and set
-	status, err := utils.FullNameSetterAndValidator(newRecord, patientRecords)
+	status, err := utils.FullNameSetter(newRecord, patientRecords)
+	if err != nil {
+		ctx.JSON(status, gin.H{"status": http.StatusText(status), "message": err.Error()})
+		return
+	}
+	status, err = utils.FullNameValidator(newRecord, patientRecords)
 	if err != nil {
 		ctx.JSON(status, gin.H{"status": http.StatusText(status), "message": err.Error()})
 		return

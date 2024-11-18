@@ -10,6 +10,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/bmathus/pnregistry-webapi/internal/pn_registry/models"
+	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -104,6 +106,20 @@ func NewMongoService[DocType interface{}](config MongoServiceConfig) DbService[D
 		svc.Collection,
 	)
 	return svc
+}
+
+func GetDatabaseService(ctx *gin.Context) (DbService[models.Record], string, error) {
+	value, exists := ctx.Get("db_service")
+	if !exists {
+		return nil, "db not found", fmt.Errorf("db not found")
+	}
+
+	db, ok := value.(DbService[models.Record])
+	if !ok {
+		return nil, "db_service context is not of type db_service.DbService", fmt.Errorf("cannot cast db_service context to db_service.DbService")
+	}
+
+	return db, "", nil
 }
 
 func (this *mongoSvc[DocType]) connect(ctx context.Context) (*mongo.Client, error) {

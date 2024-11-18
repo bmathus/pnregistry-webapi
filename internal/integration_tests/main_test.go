@@ -1,9 +1,10 @@
-package handlers
+package integrationtests
 
 import (
 	"context"
 	"log"
 	"os"
+	"strconv"
 	"testing"
 
 	"github.com/bmathus/pnregistry-webapi/internal/db_service"
@@ -18,14 +19,19 @@ import (
 var testDbService db_service.DbService[models.Record]
 
 func TestMain(m *testing.M) {
+	serverHost := os.Getenv("PN_REGISTRY_API_MONGODB_HOST")
+	serverPort, _ := strconv.Atoi(os.Getenv("PN_REGISTRY_API_MONGODB_PORT"))
+	username := os.Getenv("PN_REGISTRY_API_MONGODB_USERNAME")
+	password := os.Getenv("PN_REGISTRY_API_MONGODB_PASSWORD")
+	database := os.Getenv("PN_REGISTRY_API_MONGODB_DATABASE")
 
 	// Initialize dbService for tests
 	testDbService = db_service.NewMongoService[models.Record](db_service.MongoServiceConfig{
-		ServerHost: "localhost",
-		ServerPort: 27018,
-		UserName:   "root",
-		Password:   "neUhaDnes",
-		DbName:     "pn-registry-test",
+		ServerHost: serverHost,
+		ServerPort: serverPort,
+		UserName:   username,
+		Password:   password,
+		DbName:     database,
 		Collection: "record",
 	})
 

@@ -57,19 +57,22 @@ func RequestBodyValidator(ctx *gin.Context) (*models.Record, error) {
 
 }
 
-func FullNameSetterAndValidator(newRecord *models.Record, patientRecords []models.Record) (int, error) {
-	if newRecord.FullName == "" { // is fullName is not provided
+func FullNameSetter(record *models.Record, patientRecords []models.Record) (int, error) {
+	if record.FullName == "" { // is fullName is not provided
 		if len(patientRecords) != 0 { // inherit fullname from existing records
-			newRecord.FullName = patientRecords[0].FullName
+			record.FullName = patientRecords[0].FullName
 		} else {
-			return http.StatusNotFound, fmt.Errorf("Patient's PN records not found, provide Full Name")
+			return http.StatusNotFound, fmt.Errorf("Patient's PN records not found to inherit Full Name")
 		}
 	}
 
-	if (len(patientRecords) != 0) && newRecord.FullName != patientRecords[0].FullName {
-		return http.StatusConflict, fmt.Errorf("Full Name does not correspond to patient's ID (conflict with existing records)")
-	}
+	return http.StatusOK, nil
+}
 
+func FullNameValidator(record *models.Record, patientRecords []models.Record) (int, error) {
+	if (len(patientRecords) != 0) && record.FullName != patientRecords[0].FullName {
+		return http.StatusConflict, fmt.Errorf("Full Name does not correspond to patient (conflict with existing records)")
+	}
 	return http.StatusOK, nil
 }
 
